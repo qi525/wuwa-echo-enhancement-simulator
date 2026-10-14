@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鸣潮声骸模拟器 - 批量自动化版</title>
+    <style>
+        :root {
+            --bg: #13151a;
+            --panel-bg: #1c1f26;
+            --border: #2a2f3a;
+            --text-main: #e0e4eb;
+            --text-muted: #8b94a7;
+            --accent: #4a90e2;
+            --danger: #e24a4a;
+            --success: #4ae290;
+            --gold: #f5c542;
+            --purple: #b07cff;
+            --green: #4ae290;
+            --table-header: #232833;
+            --table-row: #181b22;
+            --table-row-alt: #1a1d24;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 440px 1fr;
+            gap: 15px;
+            width: 100%;
+            max-width: 1700px;
+            height: 100%;
+        }
+
+        /* 左侧面板 */
+        .left-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .echo-slot {
+            width: 100%;
+            background: #13161c;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+            box-sizing: border-box;
+        }
+
+        .echo-header {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--gold);
+        }
+
+        /* ===== 左侧总分条 ===== */
+        .left-score-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 0 15px;
+            margin-bottom: 10px;
+            height: 60px;
+            box-sizing: border-box;
+            background: linear-gradient(135deg, #1e232e, #232833);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .left-score-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            opacity: 0.6;
+        }
+
+        .left-score-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+        }
+
+        .left-score-num {
+            font-size: 1.9rem;
+            font-weight: bold;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: var(--gold);
+            line-height: 1;
+            min-width: 100px;
+            text-align: center;
+            text-shadow: 0 0 12px rgba(245, 197, 66, 0.35);
+            transition: color 0.15s;
+        }
+
+        .left-score-badge {
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 10px;
+            border: 1px solid currentColor;
+            min-width: 48px;
+            text-align: center;
+        }
+
+        .left-score-track {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 3px;
+            background: rgba(255,255,255,0.04);
+        }
+
+        .left-score-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--green), var(--purple), var(--gold));
+            border-radius: 0 2px 2px 0;
+            transition: width 0.25s ease-out;
+        }
+
+        .substat-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            height: 240px;
+            overflow-y: auto;
+            scrollbar-gutter: stable;
+        }
+
+        .substat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            background: #1c1f26;
+            border-radius: 6px;
+            border-left: 4px solid var(--border);
+            box-sizing: border-box;
+            height: 42px;
+            align-items: center;
+        }
+
+        /* ===== 词条品质配色（列表） ===== */
+        .substat-item.grade-gold   { border-left-color: var(--gold);   background: #2a261a; }
+        .substat-item.grade-purple { border-left-color: var(--purple); background: #241d33; }
+        .substat-item.grade-green  { border-left-color: var(--green);  background: #16281f; }
+        .substat-item.grade-none   { border-left-color: #3a4152;       background: #1c1f26; }
+
+        /* 无效词条（无收益）：整体降低亮度 */
+        .substat-item.grade-none { opacity: 0.65; }
+        .substat-item.grade-none .substat-name-wrap::after {
+            content: '无收益';
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 1px 5px;
+            margin-left: 6px;
+            vertical-align: middle;
+            font-weight: normal;
+        }
+
+        .substat-value { font-weight: bold; }
+        .substat-item.grade-gold   .substat-value { color: var(--gold); }
+        .substat-item.grade-purple .substat-value { color: var(--purple); }
+        .substat-item.grade-green  .substat-value { color: var(--green); }
+        .substat-item.grade-none   .substat-value { color: var(--text-muted); }
+
+        .substat-item.empty {
+            color: var(--text-muted);
+            font-style: italic;
+            border-left-color: #2a2f3a;
+            background: transparent;
+            justify-content: center;
+            opacity: 1;
+        }
+
+        .substat-item.empty.clickable { cursor: pointer; }
+        .substat-item.empty.clickable:hover { background: #1e2530; color: var(--accent); }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            width: 100%;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            flex: 1;
+            transform: none !important;
+            transition: background-color 0.1s;
+        }
+
+        button:hover { filter: brightness(1.15); }
+        button:active { filter: brightness(0.9); }
+        button:disabled { background-color: #3a4050; cursor: not-allowed; color: #666; }
+
+        .btn-primary { font-size: 1rem; padding: 12px; background: linear-gradient(135deg, #4a90e2, #357abd); }
+        .btn-danger { background-color: var(--danger); }
+        .btn-success { background-color: var(--success); color: #111; }
+        .btn-gold { background-color: var(--gold); color: #111; }
+
+        .auto-control {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: #13161c;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            margin-top: 5px;
+            align-items: center;
+        }
+
+        .auto-control select, .auto-control input {
+            background: #1c1f26;
+            color: white;
+            border: 1px solid var(--border);
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            flex: 1;
+            min-width: 80px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background: #13161c;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--accent);
+            margin-top: 4px;
+        }
+
+        .stat-value.danger { color: var(--danger); }
+        .stat-value.success { color: var(--success); }
+
+        /* 右侧面板 */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        /* ===== 评分面板（右侧最顶部 · 固定高度防抖） ===== */
+        .score-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 14px;
+            flex-shrink: 0;
+            height: 262px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+            gap: 10px;
+            flex-wrap: wrap;
+            height: 26px;
+            box-sizing: border-box;
+        }
+
+        .score-title {
+            color: var(--gold);
+            font-weight: bold;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .score-total-wrap { display: flex; align-items: baseline; gap: 8px; }
+        .score-total-label { color: var(--text-muted); font-size: 0.75rem; }
+
+        .score-total {
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1;
+            color: var(--gold);
+            min-width: 62px;
+            text-align: right;
+            display: inline-block;
+        }
+
+        .score-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 10px;
+            border: 1px solid currentColor;
+            font-weight: bold;
+            min-width: 44px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .score-table-wrap {
+            overflow-y: auto;
+            overflow-x: hidden;
+            flex: 1;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            min-height: 0;
+            scrollbar-gutter: stable;
+            contain: strict;
+        }
+
+        .score-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.73rem;
+            text-align: center;
+            table-layout: fixed;
+        }
+
+        .score-table th {
+            position: sticky;
+            top: 0;
+            background: var(--table-header);
+            color: var(--text-muted);
+            font-weight: normal;
+            padding: 0 4px;
+            border-bottom: 1px solid var(--border);
+            z-index: 1;
+            height: 24px;
+            box-sizing: border-box;
+            line-height: 24px;
+        }
+
+        .score-table td {
+            height: 30px;
+            padding: 0 4px;
+            border-bottom: 1px solid var(--border);
+            background: var(--table-row);
+            box-sizing: border-box;
+            vertical-align: middle;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .score-table tr:last-child td { border-bottom: none; }
+        .score-table tr.main-row td { background: rgba(245, 197, 66, 0.06); }
+        .score-table tr.main-row td:first-child { color: var(--gold); font-weight: bold; }
+
+        /* 无效词条行：整行变灰 */
+        .score-table tr.void-row td { color: var(--text-muted); }
+        .score-table tr.void-row .stat-name { color: var(--text-muted) !important; font-weight: normal; }
+        .score-table tr.void-row .score-num { color: var(--text-muted) !important; }
+
+        .score-table tr.empty-row td { color: var(--text-muted); font-style: italic; }
+
+        .score-table .stat-name { font-weight: bold; }
+
+        .score-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 2px;
+            line-height: 1;
+        }
+
+        .score-num {
+            font-weight: bold;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: var(--accent);
+            font-size: 0.73rem;
+        }
+
+        .full-num {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .score-bar-track {
+            width: 100%;
+            height: 3px;
+            background: #2a2f3a;
+            border-radius: 2px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        /* 小标签：无收益 */
+        .void-tag {
+            display: inline-block;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.03);
+            border-radius: 3px;
+            padding: 0 4px;
+            margin-left: 4px;
+            vertical-align: 1px;
+        }
+
+        .right-tabs {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-weight: bold;
+            flex: 0 1 auto;
+            border-bottom: none;
+        }
+
+        .tab-btn.active {
+            background: var(--panel-bg);
+            color: var(--gold);
+            border-bottom: 2px solid var(--gold);
+        }
+
+        .tab-content {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 0 12px 12px 12px;
+            padding: 15px;
+            flex: 1;
+            overflow-y: auto;
+            display: none;
+            min-height: 0;
+        }
+
+        .tab-content.active { display: block; }
+
+        /* 品质图例 */
+        .grade-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 0.8rem;
+        }
+        .grade-legend span {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .grade-legend .lg-gold   { color: var(--gold);   border-color: rgba(245,197,66,.5);  background: rgba(245,197,66,.08); }
+        .grade-legend .lg-purple { color: var(--purple); border-color: rgba(176,124,255,.5); background: rgba(176,124,255,.08); }
+        .grade-legend .lg-green  { color: var(--green);  border-color: rgba(74,226,144,.5);  background: rgba(74,226,144,.08); }
+        .grade-legend .lg-void   { color: var(--text-muted); border-color: var(--border); background: rgba(255,255,255,.03); }
+
+        /* 数据表格 */
+        .tables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 15px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        .data-table th {
+            background-color: var(--table-header);
+            color: var(--text-muted);
+            font-weight: normal;
+            padding: 6px 3px;
+            border: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 5px 3px;
+            border: 1px solid var(--border);
+            background-color: var(--table-row);
+        }
+
+        .data-table tr:nth-child(even) td { background-color: var(--table-row-alt); }
+
+        .prob-bar-container {
+            width: 50px; height: 6px; background-color: #2a2f3a; border-radius: 3px; margin: 0 auto; overflow: hidden;
+        }
+
+        .prob-bar { height: 100%; border-radius: 3px; }
+        .prob-bar.high { background-color: var(--danger); }
+        .prob-bar.mid { background-color: var(--gold); }
+        .prob-bar.low { background-color: var(--success); }
+
+        /* 概率表中无收益卡片整体降亮 */
+        .card.void-card { opacity: 0.7; }
+
+        /* 历史记录 */
+        .history-list { display: flex; flex-direction: column; gap: 10px; }
+        .history-item {
+            background: #13161c; border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .history-item.best { border-color: var(--gold); box-shadow: 0 0 10px rgba(245, 197, 66, 0.2); }
+        .history-header {
+            display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+            font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px dashed var(--border); padding-bottom: 5px;
+        }
+        .history-substats { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; }
+        .history-substats span { background: #1c1f26; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); }
+
+        .history-substats span.grade-gold   { color: var(--gold);   border-color: rgba(245,197,66,.5);  background: rgba(245,197,66,.08); }
+        .history-substats span.grade-purple { color: var(--purple); border-color: rgba(176,124,255,.5); background: rgba(176,124,255,.08); }
+        .history-substats span.grade-green  { color: var(--green);  border-color: rgba(74,226,144,.5);  background: rgba(74,226,144,.08); }
+        .history-substats span.grade-none   { color: var(--text-muted); opacity: 0.7; }
+
+        /* 最高值 */
+        .max-values-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .max-value-item { background: #13161c; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid var(--border); }
+        .max-value-item.void-item { opacity: 0.65; }
+        .max-value-title { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+        .max-value-num { font-size: 1.2rem; font-weight: bold; color: var(--gold); }
+
+        @media (max-width: 900px) {
+            .container { grid-template-columns: 1fr; }
+            body { height: auto; overflow: auto; }
+            .left-panel, .right-panel { height: auto; }
+            .score-panel { height: auto; max-height: 300px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="left-panel">
+        <h2 style="margin: 0 0 10px 0; color:var(--gold); text-align:center; font-size: 1.2rem;">声骸开孔模拟</h2>
+
+        <div class="echo-slot">
+            <div class="echo-header">COST 4 声骸</div>
+
+            <!-- ===== 左侧总分条 ===== -->
+            <div class="left-score-bar">
+                <span class="left-score-label">总分</span>
+                <span class="left-score-num" id="leftTotalScore">8.50</span>
+                <span class="left-score-badge" id="leftScoreBadge">—</span>
+                <div class="left-score-track">
+                    <div class="left-score-fill" id="leftScoreFill"></div>
+                </div>
+            </div>
+
+            <ul class="substat-list" id="substatList"></ul>
+        </div>
+
+        <div class="controls">
+            <button class="btn-primary" onclick="openNextHole()">+1 开孔（消耗 10 打孔器）</button>
+            <div class="btn-row">
+                <button onclick="openHole(2)">开2孔</button>
+                <button onclick="openHole(3)">开3孔</button>
+                <button onclick="openHole(4)">开4孔</button>
+            </div>
+            <div class="btn-row">
+                <button class="btn-danger" onclick="openHole(5)">无脑拉满5孔</button>
+                <button class="btn-success" onclick="resetEcho()">换一个声骸</button>
+            </div>
+
+            <!-- 批量自动化控制区 -->
+            <div class="auto-control">
+                <select id="batchStrategy">
+                    <option value="full">无脑拉满5孔</option>
+                    <option value="stop" selected>5开4止损策略</option>
+                </select>
+                <input type="number" id="batchCount" value="100" min="1" max="10000" placeholder="数量">
+                <button class="btn-gold" onclick="startBatchSimulation()" style="flex: 0 0 100%; margin-top: 5px;">开始批量模拟</button>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div>打孔器</div>
+                <div class="stat-value" id="puncherCount">0</div>
+            </div>
+            <div class="stat-item">
+                <div>已开孔数</div>
+                <div class="stat-value" id="currentHoles">0</div>
+            </div>
+            <div class="stat-item">
+                <div>双爆次数</div>
+                <div class="stat-value danger" id="currentCritCount">0</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); text-align: center;">
+            只有 <b style="color:var(--gold)">双爆 / 大攻击 / 小攻击 / 共鸣解放 / 共鸣效率</b> 计分，其余词条无收益。
+        </div>
+    </div>
+
+    <div class="right-panel">
+
+        <!-- ================== 评分面板（右侧最顶部） ================== -->
+        <div class="score-panel">
+            <div class="score-header">
+                <span class="score-title">📊 当前声骸评分表（主词条保底 8.5 分）</span>
+                <span class="score-total-wrap">
+                    <span class="score-total-label">总分</span>
+                    <span class="score-total" id="totalScore">8.50</span>
+                    <span class="score-badge" id="scoreBadge">—</span>
+                </span>
+            </div>
+            <div class="score-table-wrap" id="scoreTableWrap">
+                <table class="score-table">
+                    <thead>
+                        <tr>
+                            <th style="width:18%">位置</th>
+                            <th style="width:28%">词条</th>
+                            <th style="width:20%">数值</th>
+                            <th style="width:17%">得分</th>
+                            <th style="width:17%">满分</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scoreTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="right-tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-prob')">📊 概率表</button>
+            <button class="tab-btn" onclick="switchTab('tab-history')">📜 历史记录</button>
+            <button class="tab-btn" onclick="switchTab('tab-max')">🏆 历史最高值</button>
+        </div>
+
+        <div id="tab-prob" class="tab-content active">
+            <div class="grade-legend">
+                <span class="lg-gold">★ 金色 · 双爆：暴击率 / 暴击伤害（满档 ≈ 12.18 分）</span>
+                <span class="lg-purple">★ 紫色 · 大攻击（满 8 分）/ 共鸣解放（满 5 分）</span>
+                <span class="lg-green">★ 绿色 · 小攻击（满 5 分）/ 共鸣效率（满 1.5 分）</span>
+                <span class="lg-void">◌ 灰色 · 防御 / 生命 / 普攻重击技能伤害：无收益，恒为 0 分</span>
+            </div>
+            <div class="tables-grid" id="tablesGrid"></div>
+        </div>
+
+        <div id="tab-history" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap;">
+                <span style="color: var(--text-muted); font-size: 0.85rem;">记录了所有模拟过的声骸（最多保留最近1000条）</span>
+                <button class="btn-danger" style="flex: 0 0 auto; padding: 6px 12px; font-size: 0.8rem;" onclick="clearHistory()">清空历史</button>
+            </div>
+            <div class="history-list" id="historyList"></div>
+        </div>
+
+        <div id="tab-max" class="tab-content">
+            <div style="margin-bottom: 15px; color: var(--text-muted); font-size: 0.85rem;">
+                记录了13个副词条中每个词条出现过的最高数值（🏆 表示已摸到该词条的顶档；灰色条目无收益，不计分）。
+            </div>
+            <div class="max-values-grid" id="maxValuesGrid"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ================== 品质配色定义 ==================
+    const GRADE_COLORS = {
+        gold:   'var(--gold)',
+        purple: 'var(--purple)',
+        green:  'var(--green)',
+        none:   'var(--text-main)'
+    };
+
+    // ================== 核心概率数据 ==================
+    const SUBSTAT_POOL = [
+        { name: '暴击率', type: 'crit', grade: 'gold', values: [6.3, 6.9, 7.5, 8.1, 8.7, 9.3, 9.9, 10.5], probs: [23.33, 23.33, 23.33, 8.00, 8.00, 8.00, 3.00, 3.00] },
+        { name: '暴击伤害', type: 'crit', grade: 'gold', values: [12.6, 13.8, 15.0, 16.2, 17.4, 18.6, 19.8, 21.0], probs: [23.33, 23.33, 23.33, 8.00, 8.00, 8.00, 3.00, 3.00] },
+        { name: '百分比攻击', type: 'atk', grade: 'purple', values: [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '固定攻击', type: 'other', grade: 'green', values: [30, 40, 50, 60], probs: [6.79, 52.42, 37.86, 2.91] },
+        { name: '百分比防御', type: 'other', grade: 'none', values: [8.1, 9.0, 10.0, 10.9, 11.8, 12.8, 13.8, 14.7], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '固定防御', type: 'other', grade: 'none', values: [40, 50, 60, 70], probs: [14.56, 44.66, 32.03, 8.73] },
+        { name: '百分比生命', type: 'other', grade: 'none', values: [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '固定生命', type: 'other', grade: 'none', values: [320, 360, 390, 430, 470, 510, 540, 580], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '共鸣效率', type: 'other', grade: 'green', values: [6.8, 7.6, 8.4, 9.2, 10.0, 10.8, 11.6, 12.4], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '普攻伤害', type: 'other', grade: 'none', values: [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '重击伤害', type: 'other', grade: 'none', values: [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '共鸣技能伤害', type: 'other', grade: 'none', values: [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] },
+        { name: '共鸣解放伤害', type: 'other', grade: 'purple', values: [6.4, 7.1, 7.9, 8.6, 9.4, 10.1, 10.9, 11.6], probs: [6.79, 7.76, 20.38, 24.27, 17.47, 14.56, 5.82, 2.91] }
+    ];
+
+    let currentSubstats = [];
+    let puncherCount = 0;
+    let history = JSON.parse(localStorage.getItem('wuwa_echo_history') || '[]');
+    let maxValues = JSON.parse(localStorage.getItem('wuwa_echo_max') || '{}');
+
+    SUBSTAT_POOL.forEach(sub => { if (!maxValues[sub.name]) maxValues[sub.name] = 0; });
+
+    // ================== 评分体系 ==================
+    // 【有效词条】仅以下 6 种计分：
+    //   ★ 金色：暴击率 / 暴击伤害
+    //   ◆ 紫色：百分比攻击（大攻击）/ 共鸣解放伤害
+    //   ● 绿色：固定攻击（小攻击）/ 共鸣效率
+    // 【无效词条】防御 / 生命 / 普攻 / 重击 / 共鸣技能伤害
+    //   无论数值高低，一律 0 分。
+    const MAIN_STAT_BASE_SCORE = 8.5;
+    const GRADUATE_SCORE = 40;
+
+    const SCORE_CONFIG = {
+        // ===== 有效词条（6种） =====
+        '暴击率':        { coef: 8.7 / 7.5,   full: (8.7 / 7.5) * 10.5 },
+        '暴击伤害':      { coef: 8.7 / 15.0,  full: (8.7 / 15.0) * 21.0 },
+        '百分比攻击':    { coef: 8 / 11.6,    full: 8 },
+        '共鸣解放伤害':  { coef: 5 / 11.6,    full: 5 },
+        '固定攻击':      { coef: 5 / 60,      full: 5 },
+        '共鸣效率':      { coef: 1.5 / 12.4,  full: 1.5 },
+        // ===== 无效词条（无任何实战收益，一律 0 分） =====
+        '百分比生命':    { coef: 0, full: 0 },
+        '固定生命':      { coef: 0, full: 0 },
+        '百分比防御':    { coef: 0, full: 0 },
+        '固定防御':      { coef: 0, full: 0 },
+        '普攻伤害':      { coef: 0, full: 0 },
+        '重击伤害':      { coef: 0, full: 0 },
+        '共鸣技能伤害':  { coef: 0, full: 0 }
+    };
+
+    // ================== 工具函数 ==================
+    function getGrade(name) {
+        const found = SUBSTAT_POOL.find(s => s.name === name);
+        return found ? found.grade : 'none';
+    }
+
+    // 是否有收益（即是否计分）
+    function isValuable(name) {
+        const cfg = SCORE_CONFIG[name];
+        return !!(cfg && cfg.full > 0);
+    }
+
+    function getWeightedValue(values, probs) {
+        let rand = Math.random() * 100;
+        let sum = 0;
+        for (let i = 0; i < probs.length; i++) {
+            sum += probs[i];
+            if (rand <= sum) return values[i];
+        }
+        return values[values.length - 1];
+    }
+
+    function drawSubstat() {
+        const typeIndex = Math.floor(Math.random() * SUBSTAT_POOL.length);
+        const typeData = SUBSTAT_POOL[typeIndex];
+        const value = getWeightedValue(typeData.values, typeData.probs);
+        return { name: typeData.name, type: typeData.type, grade: typeData.grade, value: value };
+    }
+
+    function isPercentageName(name) {
+        return !name.includes('固定');
+    }
+
+    function getSubstatScore(sub) {
+        const cfg = SCORE_CONFIG[sub.name];
+        if (!cfg) return 0;
+        return sub.value * cfg.coef;   // 无效词条 coef=0 → 返回 0
+    }
+
+    function getSubstatFullScore(name) {
+        const cfg = SCORE_CONFIG[name];
+        return cfg ? cfg.full : 0;
+    }
+
+    function calcSubstatTotalScore(substats) {
+        let sum = 0;
+        substats.forEach(s => { sum += getSubstatScore(s); });
+        return sum;
+    }
+
+    function calcTotalScore(substats) {
+        return MAIN_STAT_BASE_SCORE + calcSubstatTotalScore(substats);
+    }
+
+    function getScoreColor(score) {
+        if (score >= 40) return 'var(--gold)';
+        if (score >= 30) return 'var(--purple)';
+        if (score >= 20) return 'var(--green)';
+        return 'var(--text-muted)';
+    }
+
+    function getScoreBadge(score) {
+        if (score >= 40) return { text: '极品', color: 'var(--gold)' };
+        if (score >= 30) return { text: '优秀', color: 'var(--purple)' };
+        if (score >= 20) return { text: '合格', color: 'var(--green)' };
+        if (score >= 12) return { text: '一般', color: 'var(--text-muted)' };
+        return { text: '拉胯', color: 'var(--danger)' };
+    }
+
+    // ===== 左侧总分条更新 =====
+    function updateLeftScore() {
+        const total = calcTotalScore(currentSubstats);
+        const numEl = document.getElementById('leftTotalScore');
+        const badgeEl = document.getElementById('leftScoreBadge');
+        const fillEl = document.getElementById('leftScoreFill');
+        if (!numEl) return;
+
+        numEl.innerText = total.toFixed(2);
+        numEl.style.color = getScoreColor(total);
+
+        const badge = getScoreBadge(total);
+        badgeEl.innerText = badge.text;
+        badgeEl.style.color = badge.color;
+
+        const pct = Math.max(0, Math.min(100, (total / GRADUATE_SCORE) * 100));
+        fillEl.style.width = pct + '%';
+    }
+
+    // ================== 渲染逻辑 ==================
+    function renderSubstats() {
+        const list = document.getElementById('substatList');
+        list.innerHTML = '';
+
+        currentSubstats.forEach((sub) => {
+            const grade = sub.grade || getGrade(sub.name);
+            const valuable = isValuable(sub.name);
+            const li = document.createElement('li');
+            li.className = `substat-item grade-${grade}`;
+            li.innerHTML = `<span class="substat-name-wrap">${sub.name}</span>
+                            <span class="substat-value">${sub.value}${isPercentageName(sub.name) ? '%' : ''}${valuable ? '' : ' · 0分'}</span>`;
+            list.appendChild(li);
+        });
+
+        for (let i = currentSubstats.length; i < 5; i++) {
+            const li = document.createElement('li');
+            li.className = 'substat-item empty clickable';
+            li.innerText = `点击开第 ${i + 1} 孔`;
+            li.onclick = () => openHole(i + 1);
+            list.appendChild(li);
+        }
+    }
+
+    function updateStats() {
+        document.getElementById('puncherCount').innerText = puncherCount;
+        document.getElementById('currentHoles').innerText = currentSubstats.length;
+        const critCount = currentSubstats.filter(s => s.type === 'crit').length;
+        document.getElementById('currentCritCount').innerText = critCount;
+    }
+
+    // ===== 评分表格渲染（防抖 + 保滚动位置） =====
+    function scoreCellHTML(scoreText, fullText, barPct, barColor, scoreColor, isVoid) {
+        if (isVoid) {
+            return `<div class="score-cell">
+                        <span class="score-num" style="color:var(--text-muted)">0.00</span>
+                        <div class="score-bar-track"></div>
+                    </div>`;
+        }
+        const bar = (barPct === null)
+            ? '<div class="score-bar-track"></div>'
+            : `<div class="score-bar-track"><div class="score-bar-fill" style="width:${barPct}%;background:${barColor}"></div></div>`;
+        return `<div class="score-cell">
+                    <span class="score-num" style="color:${scoreColor}">${scoreText}</span>
+                    ${bar}
+                </div>`;
+    }
+
+    function _renderScoreTable() {
+        const wrap = document.getElementById('scoreTableWrap');
+        const tbody = document.getElementById('scoreTableBody');
+
+        const prevScroll = wrap ? wrap.scrollTop : 0;
+
+        let html = '';
+        let totalScore = MAIN_STAT_BASE_SCORE;
+
+        // 主词条行
+        html += `<tr class="main-row">
+            <td>主词条</td>
+            <td class="stat-name" style="color:var(--gold)">COST 4 默认</td>
+            <td>—</td>
+            <td>${scoreCellHTML(
+                    MAIN_STAT_BASE_SCORE.toFixed(2),
+                    MAIN_STAT_BASE_SCORE.toFixed(2),
+                    100, 'var(--gold)', 'var(--gold)', false
+                )}</td>
+            <td class="full-num">${MAIN_STAT_BASE_SCORE.toFixed(2)}</td>
+        </tr>`;
+
+        // 副词条行
+        for (let i = 0; i < 5; i++) {
+            const sub = currentSubstats[i];
+            if (sub) {
+                const valuable = isValuable(sub.name);
+                const score = getSubstatScore(sub);       // 无效词条 = 0
+                const full = getSubstatFullScore(sub.name); // 无效词条 = 0
+                const grade = sub.grade || getGrade(sub.name);
+                const color = valuable ? GRADE_COLORS[grade] : 'var(--text-muted)';
+                totalScore += score;
+
+                if (valuable) {
+                    const pct = Math.min(100, (score / full) * 100);
+                    const barColor = pct >= 80 ? 'var(--gold)' : (pct >= 50 ? 'var(--purple)' : 'var(--green)');
+                    html += `<tr>
+                        <td>副词条${i + 1}</td>
+                        <td class="stat-name" style="color:${color}">${sub.name}</td>
+                        <td>${sub.value}${isPercentageName(sub.name) ? '%' : ''}</td>
+                        <td>${scoreCellHTML(score.toFixed(2), full.toFixed(2), pct, barColor, color, false)}</td>
+                        <td class="full-num">${full.toFixed(2)}</td>
+                    </tr>`;
+                } else {
+                    // 无效词条：0 分，无进度条
+                    html += `<tr class="void-row">
+                        <td>副词条${i + 1}</td>
+                        <td class="stat-name">${sub.name}<span class="void-tag">无收益</span></td>
+                        <td>${sub.value}${isPercentageName(sub.name) ? '%' : ''}</td>
+                        <td>${scoreCellHTML('0.00', '0.00', null, '', 'var(--text-muted)', true)}</td>
+                        <td class="full-num">0.00</td>
+                    </tr>`;
+                }
+            } else {
+                html += `<tr class="empty-row">
+                    <td>副词条${i + 1}</td>
+                    <td colspan="2">未开孔</td>
+                    <td>${scoreCellHTML('—', '—', null, '', 'var(--text-muted)', false)}</td>
+                    <td class="full-num">—</td>
+                </tr>`;
+            }
+        }
+
+        tbody.innerHTML = html;
+
+        if (wrap) wrap.scrollTop = prevScroll;
+
+        const totalEl = document.getElementById('totalScore');
+        const badgeEl = document.getElementById('scoreBadge');
+        totalEl.innerText = totalScore.toFixed(2);
+        totalEl.style.color = getScoreColor(totalScore);
+
+        const badge = getScoreBadge(totalScore);
+        badgeEl.innerText = badge.text;
+        badgeEl.style.color = badge.color;
+
+        updateLeftScore();
+    }
+
+    let _scoreRenderScheduled = false;
+    function renderScoreTable() {
+        if (_scoreRenderScheduled) return;
+        _scoreRenderScheduled = true;
+        requestAnimationFrame(() => {
+            _scoreRenderScheduled = false;
+            _renderScoreTable();
+        });
+    }
+
+    function renderTables() {
+        const grid = document.getElementById('tablesGrid');
+        let html = '';
+        SUBSTAT_POOL.forEach(data => {
+            const valuable = isValuable(data.name);
+            const color = GRADE_COLORS[data.grade] || 'var(--text-main)';
+            const badge = data.grade === 'gold' ? ' ★'
+                        : data.grade === 'purple' ? ' ◆'
+                        : data.grade === 'green' ? ' ●' : '';
+
+            let rows = '', cumulative = 0;
+            data.values.forEach((val, index) => {
+                cumulative += data.probs[index];
+                const displayVal = isPercentageName(data.name) ? `${val}%` : `${val}`;
+
+                const p = data.probs[index];
+                let barClass = p >= 20 ? 'high' : (p >= 8 ? 'mid' : 'low');
+
+                rows += `<tr>
+                    <td>${index + 1}</td>
+                    <td style="font-weight:bold; color:${color}">${displayVal}</td>
+                    <td style="color:var(--text-muted)">${p.toFixed(2)}%</td>
+                    <td style="color:var(--text-muted)">${cumulative.toFixed(2)}%</td>
+                    <td><div class="prob-bar-container"><div class="prob-bar ${barClass}" style="width:${Math.min(p * 3, 100)}%"></div></div></td>
+                </tr>`;
+            });
+
+            const cfg = SCORE_CONFIG[data.name];
+            let scoreInfo;
+            if (!cfg || cfg.full === 0) {
+                scoreInfo = '无收益 · 恒 0 分';
+            } else {
+                scoreInfo = `满档 ≈ ${cfg.full.toFixed(2)} 分`;
+            }
+
+            const cardCls = valuable ? 'card' : 'card void-card';
+            const headerColor = valuable ? color : 'var(--text-muted)';
+
+            html += `<div class="${cardCls}" style="background:var(--panel-bg); border:1px solid var(--border); border-radius:8px; padding:10px;">
+                <h4 style="margin:0 0 8px 0; color:${headerColor}; text-align:center; font-size:0.9rem;">${data.name}${badge}
+                    <span style="color:var(--text-muted); font-weight:normal; font-size:0.7rem;">（${scoreInfo}）</span>
+                </h4>
+                <table class="data-table">
+                    <thead><tr><th>档位</th><th>数值</th><th>单项</th><th>累计</th><th>概率</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+        });
+        grid.innerHTML = html;
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        if (history.length === 0) {
+            list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">暂无历史记录，快去模拟吧！</div>';
+            return;
+        }
+        let maxScore = 0;
+        history.forEach(h => { if (h.critScore > maxScore) maxScore = h.critScore; });
+
+        let html = '';
+        history.slice(0, 50).forEach((record, index) => {
+            const isBest = record.critScore === maxScore && record.critScore > 0;
+            const total = (record.totalScore != null) ? record.totalScore : calcTotalScore(record.substats);
+
+            let substatsHtml = '';
+            record.substats.forEach(s => {
+                const grade = s.grade || getGrade(s.name);
+                const valuable = isValuable(s.name);
+                const isMax = maxValues[s.name] > 0 && s.value === maxValues[s.name];
+                const suffix = valuable ? (isMax ? ' ★' : '') : ' · 0分';
+                substatsHtml += `<span class="grade-${grade}">${s.name} +${s.value}${isPercentageName(s.name) ? '%' : ''}${suffix}</span>`;
+            });
+
+            html += `<div class="history-item ${isBest ? 'best' : ''}">
+                <div class="history-header">
+                    <span>#${history.length - index} | ${record.timestamp}</span>
+                    <span>消耗: ${record.punchers} | 双爆分: ${record.critScore.toFixed(1)}
+                        | 总分: <b style="color:${getScoreColor(total)}">${total.toFixed(2)}</b>
+                    </span>
+                </div>
+                <div class="history-substats">${substatsHtml}</div>
+            </div>`;
+        });
+        list.innerHTML = html;
+    }
+
+    function renderMaxValues() {
+        const grid = document.getElementById('maxValuesGrid');
+        let html = '';
+        SUBSTAT_POOL.forEach(data => {
+            const maxVal = maxValues[data.name] || 0;
+            const valuable = isValuable(data.name);
+            const displayVal = maxVal > 0 ? (isPercentageName(data.name) ? `${maxVal}%` : maxVal) : '未出现';
+            const color = (maxVal > 0 && valuable) ? (GRADE_COLORS[data.grade] || 'var(--text-main)') : 'var(--text-muted)';
+            const isTop = maxVal >= data.values[data.values.length - 1];
+
+            let scoreAtMax;
+            if (!valuable) {
+                scoreAtMax = '无收益 · 0 分';
+            } else if (maxVal > 0) {
+                const cfg = SCORE_CONFIG[data.name];
+                scoreAtMax = (maxVal * cfg.coef).toFixed(2) + ' 分';
+            } else {
+                scoreAtMax = '—';
+            }
+
+            html += `<div class="max-value-item ${valuable ? '' : 'void-item'}">
+                <div class="max-value-title">${data.name}${valuable ? '' : ' · 无收益'}</div>
+                <div class="max-value-num" style="color:${color}">${displayVal}${isTop ? ' 🏆' : ''}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:3px;">最高得分 ${scoreAtMax}</div>
+            </div>`;
+        });
+        grid.innerHTML = html;
+    }
+
+    // ================== 手动开孔逻辑 ==================
+    function openNextHole() {
+        if (currentSubstats.length >= 5) return;
+        openHole(currentSubstats.length + 1);
+    }
+
+    function openHole(targetCount) {
+        if (currentSubstats.length >= targetCount || currentSubstats.length >= 5) return;
+        if (currentSubstats.length === 0) { currentSubstats = []; puncherCount = 0; }
+        while (currentSubstats.length < targetCount && currentSubstats.length < 5) {
+            let newSub, isDuplicate = true, attempts = 0;
+            while (isDuplicate && attempts < 100) {
+                newSub = drawSubstat();
+                isDuplicate = currentSubstats.some(s => s.name === newSub.name);
+                attempts++;
+            }
+            if (attempts >= 100) break;
+            currentSubstats.push(newSub);
+            puncherCount += 10;
+            if (newSub.value > maxValues[newSub.name]) maxValues[newSub.name] = newSub.value;
+        }
+        renderSubstats();
+        updateStats();
+        renderScoreTable();
+        renderMaxValues();
+    }
+
+    function resetEcho() {
+        if (currentSubstats.length > 0) {
+            saveHistoryToMemory([...currentSubstats], puncherCount);
+            localStorage.setItem('wuwa_echo_history', JSON.stringify(history));
+            localStorage.setItem('wuwa_echo_max', JSON.stringify(maxValues));
+            renderHistory();
+            renderMaxValues();
+        }
+        currentSubstats = [];
+        puncherCount = 0;
+        renderSubstats();
+        updateStats();
+        renderScoreTable();
+    }
+
+    // ================== 批量自动化核心逻辑 ==================
+    function simulateOneEcho(strategy) {
+        let substats = [];
+        let punchers = 0;
+
+        while (substats.length < 5) {
+            let newSub, isDuplicate = true, attempts = 0;
+            while (isDuplicate && attempts < 100) {
+                newSub = drawSubstat();
+                isDuplicate = substats.some(s => s.name === newSub.name);
+                attempts++;
+            }
+            if (attempts >= 100) break;
+            substats.push(newSub);
+            punchers += 10;
+
+            if (newSub.value > maxValues[newSub.name]) {
+                maxValues[newSub.name] = newSub.value;
+            }
+
+            if ((strategy === 'stop') && substats.length === 4) {
+                const critCount = substats.filter(s => s.type === 'crit').length;
+                const hasAtk = substats.some(s => s.name === '百分比攻击');
+                let shouldKeep = (critCount === 2) || (critCount === 1 && hasAtk);
+                if (!shouldKeep) {
+                    return { substats: [...substats], punchers };
+                }
+            }
+        }
+        return { substats, punchers };
+    }
+
+    function saveHistoryToMemory(substats, punchers) {
+        let critScore = 0;
+        substats.forEach(s => {
+            if (s.name === '暴击率') critScore += s.value * 2;
+            if (s.name === '暴击伤害') critScore += s.value;
+        });
+
+        const totalScore = calcTotalScore(substats);
+
+        const record = {
+            id: Date.now() + Math.random().toString(36).substr(2, 5),
+            timestamp: new Date().toLocaleString(),
+            substats: substats.map(s => ({ name: s.name, value: s.value, type: s.type, grade: s.grade })),
+            punchers: punchers,
+            critScore: critScore,
+            totalScore: totalScore
+        };
+        history.unshift(record);
+        if (history.length > 1000) history = history.slice(0, 1000);
+    }
+
+    function startBatchSimulation() {
+        const countInput = document.getElementById('batchCount');
+        const count = parseInt(countInput.value) || 100;
+        if (count > 10000) { alert('单次最多模拟10000个胚子，防止浏览器卡死！'); return; }
+
+        const strategy = document.getElementById('batchStrategy').value;
+
+        let totalPunchers = 0;
+        let totalCritCount = 0;
+        let totalScoreSum = 0;
+
+        currentSubstats = [];
+        puncherCount = 0;
+        renderSubstats();
+        updateStats();
+        renderScoreTable();
+
+        for (let i = 0; i < count; i++) {
+            let result = simulateOneEcho(strategy);
+            totalPunchers += result.punchers;
+            if (result.substats.filter(s => s.type === 'crit').length === 2) totalCritCount++;
+            totalScoreSum += calcTotalScore(result.substats);
+            saveHistoryToMemory(result.substats, result.punchers);
+        }
+
+        localStorage.setItem('wuwa_echo_history', JSON.stringify(history));
+        localStorage.setItem('wuwa_echo_max', JSON.stringify(maxValues));
+
+        renderHistory();
+        renderMaxValues();
+        renderScoreTable();
+
+        const avgScore = totalScoreSum / count;
+        alert(`批量模拟完成！\n共模拟：${count} 个胚子\n策略：${strategy === 'full' ? '无脑拉满' : '5开4止损'}\n总消耗打孔器：${totalPunchers} 个\n出双爆次数：${totalCritCount} 次\n平均每个双爆消耗：${totalCritCount > 0 ? (totalPunchers / totalCritCount).toFixed(1) : 'N/A'} 打孔器\n平均评分：${avgScore.toFixed(2)} 分`);
+    }
+
+    // ================== 其他 UI 交互 ==================
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+        if (tabId === 'tab-history') renderHistory();
+        if (tabId === 'tab-max') renderMaxValues();
+    }
+
+    function clearHistory() {
+        if (confirm('确定要清空所有历史记录和最高值记录吗？')) {
+            history = [];
+            maxValues = {};
+            SUBSTAT_POOL.forEach(sub => maxValues[sub.name] = 0);
+            localStorage.removeItem('wuwa_echo_history');
+            localStorage.removeItem('wuwa_echo_max');
+            renderHistory();
+            renderMaxValues();
+        }
+    }
+
+    // 初始化
+    renderTables();
+    renderSubstats();
+    updateStats();
+    _renderScoreTable();
+    renderHistory();
+    renderMaxValues();
+</script>
+</body>
+</html>
